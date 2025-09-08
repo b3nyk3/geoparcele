@@ -1,0 +1,42 @@
+
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>GeoParcele</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#111827" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body { margin:0; font-family: system-ui, sans-serif; }
+    #map { height: 80vh; }
+    header { background:#111827; color:#fff; padding:8px 12px; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:8px; }
+    button, label.btn { background:#fff; border:1px solid #ddd; border-radius:8px; padding:6px 10px; }
+    input[type=file] { display:none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="toolbar">
+      <strong>GeoParcele</strong>
+      <label class="btn">Import GeoJSON<input type="file" id="file" accept=".geojson,.json,application/json" /></label>
+      <button id="export">Export</button>
+    </div>
+  </header>
+  <div id="map"></div>
+  <div id="list"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/sw-register.js"></script>
+  <script>
+    if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js');}
+    let map = L.map('map').setView([47.1585, 23.5681], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'&copy; OpenStreetMap'}).addTo(map);
+    let features=[];
+    function draw(){ features.forEach(f=>{ f.layer&&map.removeLayer(f.layer); }); features.forEach(f=>{f.layer=L.polygon(f.coords,{color:'#2563eb'}).addTo(map);});}
+    document.getElementById('file').addEventListener('change',(e)=>{let f=e.target.files[0]; if(!f) return; let r=new FileReader(); r.onload=()=>{try{let gj=JSON.parse(r.result); features=gj.features.map(ft=>({coords:ft.geometry.coordinates[0].map(([x,y])=>[y,x])})); draw();}catch{alert('Fișier invalid');}}; r.readAsText(f);});
+    document.getElementById('export').addEventListener('click',()=>{let blob=new Blob([JSON.stringify({type:'FeatureCollection',features:features.map(f=>({type:'Feature',geometry:{type:'Polygon',coordinates:[f.coords.map(([lat,lng])=>[lng,lat])]},properties:{}}))})],{type:'application/json'}); let a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='parcele.geojson'; a.click();});
+  </script>
+</body>
+</html>
