@@ -4,72 +4,70 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>GeoParcele – Navigație</title>
+  <title>GeoParcele – Firme & Navigație</title>
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#111827" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    :root { --bg:#f6f7f8; --ink:#111827; --line:#e5e7eb; }
+    :root { --bg:#f6f7f8; --ink:#111827; --line:#e5e7eb; --brand:#111827; }
     * { box-sizing: border-box; }
     body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--ink); }
-    header { padding:10px 12px; background:#111827; color:#fff; display:flex; gap:8px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:20; }
+    header { position:fixed; top:0; left:0; right:0; height:56px; background:var(--brand); color:#fff; display:flex; align-items:center; gap:8px; padding:0 10px; z-index:50; }
+    #hamburger { width:36px; height:36px; border-radius:10px; border:1px solid #374151; background:#1f2937; color:#fff; }
     header .btn, header label.btn { background:#fff; color:#111; border:1px solid var(--line); padding:8px 10px; border-radius:10px; font-size:14px; }
     header input[type=file]{ display:none; }
-    main { display:grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 60px); }
-    @media (max-width: 900px){ main { grid-template-columns: 1fr; } }
-    aside { background:#fff; border-right:1px solid var(--line); padding:10px; display:flex; flex-direction:column; gap:10px; }
-    .section { border:1px solid var(--line); border-radius:12px; background:#fff; }
-    .section h3 { margin:0; padding:8px 10px; border-bottom:1px solid var(--line); font-size:14px; }
-    .section .content { padding:8px 10px; }
+    #app { position:fixed; top:56px; bottom:0; left:0; right:0; }
+    #sidebar { position:absolute; top:0; bottom:0; left:0; width:320px; max-width:92vw; background:#fff; border-right:1px solid var(--line); box-shadow: 0 10px 30px rgba(0,0,0,.12); transform: translateX(-100%); transition: transform .25s ease; z-index:40; }
+    #sidebar.open { transform: translateX(0); }
+    #sidebar .section { border-bottom:1px solid var(--line); padding:10px; }
+    #sidebar h3 { margin:0 0 6px; font-size:14px; }
+    #map { position:absolute; inset:0; }
+    .fab { position:absolute; right:12px; bottom:12px; display:flex; flex-direction:column; gap:10px; z-index:45; }
+    .fab button { width:54px; height:54px; border-radius:999px; border:none; background:#111827; color:#fff; }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; border:1px solid #e5e7eb; background:#f9fafb; font-size:12px; }
     .row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px dashed #f0f0f0; }
     .row:last-child { border-bottom:none; }
-    .cat-badge { display:inline-flex; align-items:center; gap:6px; background:#effaf2; color:#065f46; border:1px solid #a7f3d0; padding:2px 8px; border-radius:999px; font-size:12px; }
-    .list { max-height: 34vh; overflow:auto; }
     .muted { color:#6b7280; font-size:12px; }
     .tiny { font-size:12px; }
-    #map { height: calc(100vh - 60px); }
-    .floating { position:fixed; bottom:14px; right:14px; display:flex; flex-direction:column; gap:10px; z-index:30; }
-    .fab { background:#111827; color:#fff; border:none; border-radius:999px; width:54px; height:54px; font-size:12px; }
+    .btn { background:#fff; border:1px solid #e5e7eb; padding:6px 8px; border-radius:8px; }
   </style>
 </head>
 <body>
   <header>
-    <strong style="font-size:18px;">GeoParcele</strong>
+    <button id="hamburger">☰</button>
+    <strong>GeoParcele</strong>
     <label class="btn">Import GeoJSON <input id="file" type="file" accept="application/geo+json,application/json,.geojson,.json" /></label>
-    <button id="export" class="btn">Export GeoJSON</button>
+    <button id="export" class="btn">Export</button>
     <input id="search" placeholder="Caută parcelă…" style="flex:1; min-width:180px; padding:8px 10px; border:1px solid var(--line); border-radius:10px;">
     <button id="install" class="btn">Instalează</button>
   </header>
 
-  <main>
-    <aside>
+  <div id="app">
+    <aside id="sidebar">
       <div class="section">
-        <h3>Categorii</h3>
-        <div class="content" id="catList"></div>
-        <div class="content" style="border-top:1px solid var(--line); display:flex; gap:6px;">
-          <input id="newCat" placeholder="Ex: iarbă, lucernă…" style="flex:1; padding:8px 10px; border:1px solid var(--line); border-radius:10px;">
-          <button id="addCat" class="btn">Adaugă</button>
-        </div>
+        <h3>Firme (categorii)</h3>
+        <div id="firmList"></div>
       </div>
-
       <div class="section">
         <h3>Parcele</h3>
-        <div class="content list" id="parcelList"></div>
+        <div id="parcelList" style="max-height:40vh; overflow:auto;"></div>
+      </div>
+      <div class="section">
+        <div class="muted tiny">Sfat: poți selecta o firmă, apoi Import → adaugă toate noile parcele direct la acea firmă.</div>
       </div>
     </aside>
-
     <div id="map"></div>
-  </main>
-
-  <div class="floating">
-    <button id="locate" class="fab" title="Arată poziția mea">GPS</button>
-    <button id="follow" class="fab" title="Urmărește-mă">▶︎</button>
+    <div class="fab">
+      <button id="locate" title="Arată poziția mea">GPS</button>
+      <button id="follow" title="Urmărește-mă">▶︎</button>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <script src="/sw-register.js"></script>
   <script>
-    // --- PWA install ---
+    // PWA install
     let deferredPrompt=null;
     window.addEventListener('beforeinstallprompt',(e)=>{e.preventDefault(); deferredPrompt=e;});
     document.getElementById('install').addEventListener('click', async ()=>{
@@ -77,16 +75,26 @@
       else alert('Android: ⋮ → Add to Home screen. iPhone: Share → Add to Home Screen.');
     });
 
-    // --- Storage ---
-    const LS_FEATURES='geoparcele@features@v3';
-    const LS_CATS='geoparcele@cats@v2';
+    // Hide/Show menu
+    const sidebar = document.getElementById('sidebar');
+    document.getElementById('hamburger').onclick = () => { sidebar.classList.toggle('open'); };
+
+    // Storage
+    const LS_FEATURES='geoparcele@features@v4';
+    const LS_FIRM='geoparcele@firmFilter@v4';
     let features = load(LS_FEATURES) || [];
-    let categories = load(LS_CATS) || [];
-    let selectedCat = null;
+    let firmFilter = load(LS_FIRM) || null;
+    const FIRMS = ['Keresztes Emese', 'Agroarn', 'Agrobaza'];
+    const FIRM_COLORS = {
+      'Keresztes Emese': '#ef4444', // roșu
+      'Agroarn': '#2563eb', // albastru
+      'Agrobaza': '#f59e0b' // portocaliu
+    };
+
     function save(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
     function load(k){ try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch{return null;} }
 
-    // --- Map ---
+    // Map
     let map = L.map('map').setView([47.1585, 23.5681], 10);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
 
@@ -110,42 +118,41 @@
     document.getElementById('follow').onclick=()=>{ follow=!follow; document.getElementById('follow').textContent = follow ? '⏸' : '▶︎'; };
 
     function drawMap(){
-      // clear non-tile & non-me layers
-      const toKeep = new Set([meMarker, accCircle]);
-      map.eachLayer(l => {
-        if(!(l instanceof L.TileLayer)){
-          if(l!==meMarker && l!==accCircle) map.removeLayer(l);
-        }
-      });
+      // clear non-tile & keep me layers
+      map.eachLayer(l => { if(!(l instanceof L.TileLayer) && l!==meMarker && l!==accCircle) map.removeLayer(l); });
       const vis = getVisibleFeatures();
       for(const f of vis){
-        const color = pickColor(f);
-        const poly = L.polygon(f.coords, { color, weight:2 }).addTo(map);
+        const color = FIRM_COLORS[f.firm] || '#06b6d4';
+        const poly = L.polygon(f.coords, { color, weight: 2 }).addTo(map);
+        // label (tooltip) inside polygon
+        const label = `${escapeHtml(f.name||'Parcelă')} — ${escapeHtml(f.firm||'')} — ${formatHa(areaHa(f))}`;
+        poly.bindTooltip(label, { permanent: true, direction: 'center', className: 'parcel-label' });
         poly.bindPopup(makePopupHTML(f));
-        poly.on('click', ()=>{ poly.openPopup(); });
       }
-      // Keep meMarker/accCircle on top
-      if(meMarker) meMarker.bringToFront();
-      if(accCircle) accCircle.bringToFront();
+      if(meMarker) meMarker.bringToFront(); if(accCircle) accCircle.bringToFront();
     }
+
+    function areaHa(f){
+      try{
+        const coords = [ f.coords[0].map(([lat,lng])=>[lng,lat]) ];
+        const gj = { type:'Feature', geometry:{ type:'Polygon', coordinates: coords } };
+        const a = turf.area(gj); // m²
+        return a/10000;
+      }catch(e){ return NaN; }
+    }
+    function formatHa(x){ return isFinite(x) ? (x.toFixed(2)+' ha') : ''; }
 
     function makePopupHTML(f){
-      const center = centerOf(f.coords);
-      const encName = escapeHtml(f.name||'Parcelă');
-      const cats = (f.categories||[]).join(', ');
-      const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${center[0]},${center[1]}`;
-      return `<div><strong>${encName}</strong></div>
-              <div class="tiny muted">${cats||'fără categorie'}</div>
+      const c=centerOf(f.coords);
+      const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${c[0]},${c[1]}`;
+      return `<div><strong>${escapeHtml(f.name||'Parcelă')}</strong></div>
+              <div class="tiny muted">${escapeHtml(f.firm||'')} · ${formatHa(areaHa(f))}</div>
               <div style="margin-top:6px; display:flex; gap:6px;">
-                <a href="${gmaps}" target="_blank" class="btn" style="text-decoration:none; border:1px solid #e5e7eb; padding:6px 8px; border-radius:8px;">Navighează</a>
-                <button onclick="window.focusParcel('${f.id}')" class="btn" style="border:1px solid #e5e7eb; padding:6px 8px; border-radius:8px;">Arată</button>
+                <a href="${gmaps}" target="_blank" class="btn" style="text-decoration:none;">Navighează</a>
+                <button onclick="window.focusParcel('${f.id}')" class="btn">Arată</button>
               </div>`;
     }
-
-    window.focusParcel = (id) => {
-      const f = features.find(x => x.id===id); if(!f) return;
-      map.setView(centerOf(f.coords), 17);
-    };
+    window.focusParcel = (id) => { const f=features.find(x=>x.id===id); if(!f) return; map.setView(centerOf(f.coords), 17); };
 
     function centerOf(coords){
       let sLat=0, sLng=0, n=0;
@@ -153,71 +160,54 @@
       return [sLat/n, sLng/n];
     }
 
-    function pickColor(f){
-      const pal=['#2563eb','#16a34a','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#84cc16','#f97316'];
-      const cat=(f.categories&&f.categories[0])||''; let h=0; for(let i=0;i<cat.length;i++){h=(h*31+cat.charCodeAt(i))&0xffffffff;}
-      return pal[Math.abs(h)%pal.length];
-    }
     function getVisibleFeatures(){
       const q=document.getElementById('search').value.trim().toLowerCase();
       return features.filter(f => {
         const okName=!q || (f.name||'').toLowerCase().includes(q);
-        const okCat=!selectedCat || (f.categories||[]).includes(selectedCat);
-        return okName && okCat;
+        const okFirm=!firmFilter || f.firm===firmFilter;
+        return okName && okFirm;
       });
     }
 
-    // --- UI Categories ---
-    function renderCategories(){
-      const box=document.getElementById('catList'); box.innerHTML='';
-      const all=document.createElement('div'); all.className='row';
-      const btnAll=document.createElement('button'); btnAll.className='btn'; btnAll.textContent='Toate';
-      if(!selectedCat) btnAll.style.background='#e5e7eb';
-      btnAll.onclick=()=>{ selectedCat=null; renderParcels(); drawMap(); renderCategories(); };
-      all.appendChild(btnAll); box.appendChild(all);
-
-      categories.forEach(cat=>{
+    // Sidebar
+    function renderFirms(){
+      const box=document.getElementById('firmList'); box.innerHTML='';
+      // All
+      const rowAll=document.createElement('div'); rowAll.className='row';
+      const allBtn=document.createElement('button'); allBtn.className='btn'; allBtn.textContent='Toate firmele';
+      if(!firmFilter) allBtn.style.background='#e5e7eb';
+      allBtn.onclick=()=>{ firmFilter=null; save(LS_FIRM, firmFilter); drawMap(); renderParcels(); renderFirms(); };
+      rowAll.appendChild(allBtn); box.appendChild(rowAll);
+      // Each firm
+      for(const firm of FIRMS){
         const row=document.createElement('div'); row.className='row';
-        row.innerHTML = `<div class="cat-badge"># ${escapeHtml(cat)}</div>`;
+        const left=document.createElement('div'); left.innerHTML = `<span class="pill" style="border-color:${FIRM_COLORS[firm]};">${firm}</span>`;
         const right=document.createElement('div');
-        const sel=document.createElement('button'); sel.className='btn'; sel.textContent=selectedCat===cat?'Selectat':'Selectează';
-        sel.onclick=()=>{ selectedCat=(selectedCat===cat?null:cat); renderParcels(); drawMap(); renderCategories(); };
-        const del=document.createElement('button'); del.className='btn'; del.textContent='Șterge';
-        del.onclick=()=>{ if(!confirm('Ștergi categoria?')) return; categories=categories.filter(c=>c!==cat); features.forEach(f=>{ f.categories=(f.categories||[]).filter(c=>c!==cat); }); if(selectedCat===cat) selectedCat=null; save(LS_CATS,categories); save(LS_FEATURES,features); renderCategories(); renderParcels(); drawMap(); };
-        right.appendChild(sel); right.appendChild(del);
-        row.appendChild(right); box.appendChild(row);
-      });
+        const sel=document.createElement('button'); sel.className='btn'; sel.textContent = (firmFilter===firm)?'Selectat':'Selectează';
+        sel.onclick=()=>{ firmFilter = (firmFilter===firm?null:firm); save(LS_FIRM, firmFilter); drawMap(); renderParcels(); renderFirms(); };
+        right.appendChild(sel);
+        row.appendChild(left); row.appendChild(right);
+        box.appendChild(row);
+      }
     }
-    document.getElementById('addCat').onclick=()=>{
-      const v=document.getElementById('newCat').value.trim(); if(!v) return; if(!categories.includes(v)) categories.push(v); save(LS_CATS,categories); document.getElementById('newCat').value=''; renderCategories();
-    };
 
-    // --- Parcels list ---
     function renderParcels(){
       const box=document.getElementById('parcelList'); box.innerHTML='';
       const items=getVisibleFeatures();
       if(!items.length){ box.innerHTML='<div class="muted">Nu există parcele (încarcă GeoJSON sau schimbă filtrul).</div>'; return; }
-      items.forEach(f=>{
+      for(const f of items){
         const row=document.createElement('div'); row.className='row';
-        const left=document.createElement('div'); left.innerHTML=`<div><strong>${escapeHtml(f.name||'Parcelă')}</strong></div><div class="tiny muted">${(f.categories||[]).join(', ') || 'fără categorie'}</div>`;
+        const left=document.createElement('div'); left.innerHTML=`<div><strong>${escapeHtml(f.name||'Parcelă')}</strong></div><div class="tiny muted">${escapeHtml(f.firm||'')} · ${formatHa(areaHa(f))}</div>`;
         const right=document.createElement('div');
         const btnFocus=document.createElement('button'); btnFocus.className='btn'; btnFocus.textContent='Arată'; btnFocus.onclick=()=>{ map.setView(centerOf(f.coords), 17); };
-        const btnCats=document.createElement('button'); btnCats.className='btn'; btnCats.textContent='Categorii…'; btnCats.onclick=()=>editCategoriesFor(f);
         const btnNav=document.createElement('a'); btnNav.className='btn'; btnNav.textContent='GPS'; btnNav.target='_blank'; const c=centerOf(f.coords); btnNav.href=`https://www.google.com/maps/dir/?api=1&destination=${c[0]},${c[1]}`;
-        right.appendChild(btnFocus); right.appendChild(btnCats); right.appendChild(btnNav);
-        row.appendChild(left); row.appendChild(right); box.appendChild(row);
-      });
+        right.appendChild(btnFocus); right.appendChild(btnNav);
+        row.appendChild(left); row.appendChild(right);
+        box.appendChild(row);
+      }
     }
 
-    function editCategoriesFor(f){
-      const input=prompt(`Categorii (separate prin virgulă) pentru ${f.name}:`, (f.categories||[]).join(', '));
-      if(input===null) return;
-      const wanted=input.split(',').map(s=>s.trim()).filter(Boolean);
-      wanted.forEach(c=>{ if(!categories.includes(c)) categories.push(c); });
-      f.categories=wanted; save(LS_FEATURES,features); save(LS_CATS,categories); renderCategories(); renderParcels(); drawMap();
-    }
-
-    // --- Import / Export ---
+    // Import/Export
     document.getElementById('file').addEventListener('change',(e)=>{
       const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{
         try{
@@ -228,31 +218,69 @@
             if(g.type==='Polygon'){ ring=g.coordinates[0].map(([lng,lat])=>[lat,lng]); }
             else if(g.type==='MultiPolygon'){ ring=g.coordinates[0][0].map(([lng,lat])=>[lat,lng]); }
             else continue;
-            const prop=ft.properties||{}; const name=String(prop.name||prop.Nume||prop.nume||prop.ID||prop.id||prop.parcela||'Parcelă');
-            const cats = Array.isArray(prop.categories)?prop.categories:(typeof prop.categories==='string'?prop.categories.split(',').map(s=>s.trim()).filter(Boolean):[]);
-            cats.forEach(c=>{ if(!categories.includes(c)) categories.push(c); });
-            toAdd.push({ id: rid(), name, coords:[ring], props:prop, categories: cats });
+            const props=ft.properties||{};
+            const name = detectName(props);
+            const firm = detectFirm(props) || firmFilter || askFirmOnce();
+            toAdd.push({ id: rid(), name, firm, coords:[ring], props });
           }
           features = toAdd.concat(features);
-          save(LS_FEATURES,features); save(LS_CATS,categories);
-          renderCategories(); renderParcels(); drawMap();
+          save(LS_FEATURES, features);
+          drawMap(); renderParcels(); renderFirms();
           if(toAdd[0]) map.setView(centerOf(toAdd[0].coords), 15);
         }catch(e){ alert('Fișier invalid (GeoJSON Poligon/MultiPoligon)'); }
       }; r.readAsText(f);
     });
-    document.getElementById('export').addEventListener('click',()=>{
-      const vis=getVisibleFeatures();
-      const out={ type:'FeatureCollection', features: vis.map(f=>({ type:'Feature', properties:Object.assign({}, f.props||{}, {name:f.name, categories:f.categories||[]}), geometry:{ type:'Polygon', coordinates:[ f.coords[0].map(([lat,lng])=>[lng,lat]) ] } })) };
-      const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='parcele_export.geojson'; a.click();
-    });
-    document.getElementById('search').addEventListener('input',()=>{ renderParcels(); drawMap(); });
 
-    // --- utils ---
+    document.getElementById('export').addEventListener('click',()=>{
+      const out={ type:'FeatureCollection', features: features.map(f=>({ type:'Feature', properties:Object.assign({}, f.props||{}, { name:f.name, firm:f.firm }), geometry:{ type:'Polygon', coordinates:[ f.coords[0].map(([lat,lng])=>[lng,lat]) ] } })) };
+      const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='parcele_firme.geojson'; a.click();
+    });
+
+    // Helpers: name/firm detection
+    function detectName(p){
+      const keys = ['PARCELA','Parcela','parcela','name','Name','Nume','NUME','ID','id','Cod','COD'];
+      for(const k of keys){ if(p[k]) return String(p[k]); }
+      // fallback: try to find something like "84a" in any string field
+      for(const k in p){ const v=p[k]; if(typeof v==='string'){ const m=v.match(/\b\d+[a-zA-Z]?\b/); if(m) return m[0]; } }
+      return 'Parcelă';
+    }
+    function detectFirm(p){
+      const val = Object.values(p).map(v=>String(v).toLowerCase());
+      if(val.some(s=>s.includes('keresztes') || s.includes('emese'))) return 'Keresztes Emese';
+      if(val.some(s=>s.includes('agroarn'))) return 'Agroarn';
+      if(val.some(s=>s.includes('agrobaza') || s.includes('agrobaza keresztes'))) return 'Agrobaza';
+      return null;
+    }
+    let askedFirm=null;
+    function askFirmOnce(){
+      if(askedFirm!==null) return askedFirm;
+      const choice = prompt('Nu am găsit firma în fișier. Scrie una din: Keresztes Emese, Agroarn, Agrobaza');
+      askedFirm = (FIRMS.includes(choice) ? choice : null);
+      return askedFirm;
+    }
+
+    // Search
+    document.getElementById('search').addEventListener('input',()=>{ drawMap(); renderParcels(); });
+
+    // Utils
     function rid(){ try{ return crypto.randomUUID(); } catch { return 'id-'+Math.random().toString(36).slice(2,10); } }
     function escapeHtml(s){ return String(s).replace(/[&<>'"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
     // init
-    renderCategories(); renderParcels(); drawMap();
+    renderFirms(); renderParcels(); drawMap();
   </script>
+
+  <style>
+    /* tooltip style to be readable */
+    .leaflet-tooltip.parcel-label {
+      background: rgba(255,255,255,.9);
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 2px 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      font-size: 12px;
+      color: #111827;
+    }
+  </style>
 </body>
 </html>
