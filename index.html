@@ -4,39 +4,255 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>GeoParcele</title>
+  <title>GeoParcele – Navigație</title>
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#111827" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body { margin:0; font-family: system-ui, sans-serif; }
-    #map { height: 80vh; }
-    header { background:#111827; color:#fff; padding:8px 12px; }
-    .toolbar { display:flex; flex-wrap:wrap; gap:8px; }
-    button, label.btn { background:#fff; border:1px solid #ddd; border-radius:8px; padding:6px 10px; }
-    input[type=file] { display:none; }
+    :root { --bg:#f6f7f8; --ink:#111827; --line:#e5e7eb; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--ink); }
+    header { padding:10px 12px; background:#111827; color:#fff; display:flex; gap:8px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:20; }
+    header .btn, header label.btn { background:#fff; color:#111; border:1px solid var(--line); padding:8px 10px; border-radius:10px; font-size:14px; }
+    header input[type=file]{ display:none; }
+    main { display:grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 60px); }
+    @media (max-width: 900px){ main { grid-template-columns: 1fr; } }
+    aside { background:#fff; border-right:1px solid var(--line); padding:10px; display:flex; flex-direction:column; gap:10px; }
+    .section { border:1px solid var(--line); border-radius:12px; background:#fff; }
+    .section h3 { margin:0; padding:8px 10px; border-bottom:1px solid var(--line); font-size:14px; }
+    .section .content { padding:8px 10px; }
+    .row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px dashed #f0f0f0; }
+    .row:last-child { border-bottom:none; }
+    .cat-badge { display:inline-flex; align-items:center; gap:6px; background:#effaf2; color:#065f46; border:1px solid #a7f3d0; padding:2px 8px; border-radius:999px; font-size:12px; }
+    .list { max-height: 34vh; overflow:auto; }
+    .muted { color:#6b7280; font-size:12px; }
+    .tiny { font-size:12px; }
+    #map { height: calc(100vh - 60px); }
+    .floating { position:fixed; bottom:14px; right:14px; display:flex; flex-direction:column; gap:10px; z-index:30; }
+    .fab { background:#111827; color:#fff; border:none; border-radius:999px; width:54px; height:54px; font-size:12px; }
   </style>
 </head>
 <body>
   <header>
-    <div class="toolbar">
-      <strong>GeoParcele</strong>
-      <label class="btn">Import GeoJSON<input type="file" id="file" accept=".geojson,.json,application/json" /></label>
-      <button id="export">Export</button>
-    </div>
+    <strong style="font-size:18px;">GeoParcele</strong>
+    <label class="btn">Import GeoJSON <input id="file" type="file" accept="application/geo+json,application/json,.geojson,.json" /></label>
+    <button id="export" class="btn">Export GeoJSON</button>
+    <input id="search" placeholder="Caută parcelă…" style="flex:1; min-width:180px; padding:8px 10px; border:1px solid var(--line); border-radius:10px;">
+    <button id="install" class="btn">Instalează</button>
   </header>
-  <div id="map"></div>
-  <div id="list"></div>
+
+  <main>
+    <aside>
+      <div class="section">
+        <h3>Categorii</h3>
+        <div class="content" id="catList"></div>
+        <div class="content" style="border-top:1px solid var(--line); display:flex; gap:6px;">
+          <input id="newCat" placeholder="Ex: iarbă, lucernă…" style="flex:1; padding:8px 10px; border:1px solid var(--line); border-radius:10px;">
+          <button id="addCat" class="btn">Adaugă</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Parcele</h3>
+        <div class="content list" id="parcelList"></div>
+      </div>
+    </aside>
+
+    <div id="map"></div>
+  </main>
+
+  <div class="floating">
+    <button id="locate" class="fab" title="Arată poziția mea">GPS</button>
+    <button id="follow" class="fab" title="Urmărește-mă">▶︎</button>
+  </div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/sw-register.js"></script>
   <script>
-    if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js');}
+    // --- PWA install ---
+    let deferredPrompt=null;
+    window.addEventListener('beforeinstallprompt',(e)=>{e.preventDefault(); deferredPrompt=e;});
+    document.getElementById('install').addEventListener('click', async ()=>{
+      if(deferredPrompt){ deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt=null; }
+      else alert('Android: ⋮ → Add to Home screen. iPhone: Share → Add to Home Screen.');
+    });
+
+    // --- Storage ---
+    const LS_FEATURES='geoparcele@features@v3';
+    const LS_CATS='geoparcele@cats@v2';
+    let features = load(LS_FEATURES) || [];
+    let categories = load(LS_CATS) || [];
+    let selectedCat = null;
+    function save(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+    function load(k){ try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch{return null;} }
+
+    // --- Map ---
     let map = L.map('map').setView([47.1585, 23.5681], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'&copy; OpenStreetMap'}).addTo(map);
-    let features=[];
-    function draw(){ features.forEach(f=>{ f.layer&&map.removeLayer(f.layer); }); features.forEach(f=>{f.layer=L.polygon(f.coords,{color:'#2563eb'}).addTo(map);});}
-    document.getElementById('file').addEventListener('change',(e)=>{let f=e.target.files[0]; if(!f) return; let r=new FileReader(); r.onload=()=>{try{let gj=JSON.parse(r.result); features=gj.features.map(ft=>({coords:ft.geometry.coordinates[0].map(([x,y])=>[y,x])})); draw();}catch{alert('Fișier invalid');}}; r.readAsText(f);});
-    document.getElementById('export').addEventListener('click',()=>{let blob=new Blob([JSON.stringify({type:'FeatureCollection',features:features.map(f=>({type:'Feature',geometry:{type:'Polygon',coordinates:[f.coords.map(([lat,lng])=>[lng,lat])]},properties:{}}))})],{type:'application/json'}); let a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='parcele.geojson'; a.click();});
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+
+    let meMarker=null, accCircle=null, follow=false;
+    function updateMe(lat,lng,acc){
+      const p=[lat,lng];
+      if(!meMarker){ meMarker=L.marker(p).addTo(map).bindPopup('Tu ești aici'); }
+      else meMarker.setLatLng(p);
+      if(acc>0){
+        if(!accCircle){ accCircle=L.circle(p,{radius:acc, color:'#6b7280'}).addTo(map); }
+        else { accCircle.setLatLng(p); accCircle.setRadius(acc); }
+      }
+      if(follow){ map.setView(p, Math.max(map.getZoom(), 16)); }
+    }
+    if('geolocation' in navigator){
+      navigator.geolocation.watchPosition((pos)=>{
+        updateMe(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy||0);
+      }, ()=>{}, { enableHighAccuracy:true, maximumAge:3000, timeout:10000 });
+    }
+    document.getElementById('locate').onclick=()=>{ if(meMarker){ map.setView(meMarker.getLatLng(), 16); } };
+    document.getElementById('follow').onclick=()=>{ follow=!follow; document.getElementById('follow').textContent = follow ? '⏸' : '▶︎'; };
+
+    function drawMap(){
+      // clear non-tile & non-me layers
+      const toKeep = new Set([meMarker, accCircle]);
+      map.eachLayer(l => {
+        if(!(l instanceof L.TileLayer)){
+          if(l!==meMarker && l!==accCircle) map.removeLayer(l);
+        }
+      });
+      const vis = getVisibleFeatures();
+      for(const f of vis){
+        const color = pickColor(f);
+        const poly = L.polygon(f.coords, { color, weight:2 }).addTo(map);
+        poly.bindPopup(makePopupHTML(f));
+        poly.on('click', ()=>{ poly.openPopup(); });
+      }
+      // Keep meMarker/accCircle on top
+      if(meMarker) meMarker.bringToFront();
+      if(accCircle) accCircle.bringToFront();
+    }
+
+    function makePopupHTML(f){
+      const center = centerOf(f.coords);
+      const encName = escapeHtml(f.name||'Parcelă');
+      const cats = (f.categories||[]).join(', ');
+      const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${center[0]},${center[1]}`;
+      return `<div><strong>${encName}</strong></div>
+              <div class="tiny muted">${cats||'fără categorie'}</div>
+              <div style="margin-top:6px; display:flex; gap:6px;">
+                <a href="${gmaps}" target="_blank" class="btn" style="text-decoration:none; border:1px solid #e5e7eb; padding:6px 8px; border-radius:8px;">Navighează</a>
+                <button onclick="window.focusParcel('${f.id}')" class="btn" style="border:1px solid #e5e7eb; padding:6px 8px; border-radius:8px;">Arată</button>
+              </div>`;
+    }
+
+    window.focusParcel = (id) => {
+      const f = features.find(x => x.id===id); if(!f) return;
+      map.setView(centerOf(f.coords), 17);
+    };
+
+    function centerOf(coords){
+      let sLat=0, sLng=0, n=0;
+      coords[0].forEach(([lat,lng])=>{ sLat+=lat; sLng+=lng; n++; });
+      return [sLat/n, sLng/n];
+    }
+
+    function pickColor(f){
+      const pal=['#2563eb','#16a34a','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#84cc16','#f97316'];
+      const cat=(f.categories&&f.categories[0])||''; let h=0; for(let i=0;i<cat.length;i++){h=(h*31+cat.charCodeAt(i))&0xffffffff;}
+      return pal[Math.abs(h)%pal.length];
+    }
+    function getVisibleFeatures(){
+      const q=document.getElementById('search').value.trim().toLowerCase();
+      return features.filter(f => {
+        const okName=!q || (f.name||'').toLowerCase().includes(q);
+        const okCat=!selectedCat || (f.categories||[]).includes(selectedCat);
+        return okName && okCat;
+      });
+    }
+
+    // --- UI Categories ---
+    function renderCategories(){
+      const box=document.getElementById('catList'); box.innerHTML='';
+      const all=document.createElement('div'); all.className='row';
+      const btnAll=document.createElement('button'); btnAll.className='btn'; btnAll.textContent='Toate';
+      if(!selectedCat) btnAll.style.background='#e5e7eb';
+      btnAll.onclick=()=>{ selectedCat=null; renderParcels(); drawMap(); renderCategories(); };
+      all.appendChild(btnAll); box.appendChild(all);
+
+      categories.forEach(cat=>{
+        const row=document.createElement('div'); row.className='row';
+        row.innerHTML = `<div class="cat-badge"># ${escapeHtml(cat)}</div>`;
+        const right=document.createElement('div');
+        const sel=document.createElement('button'); sel.className='btn'; sel.textContent=selectedCat===cat?'Selectat':'Selectează';
+        sel.onclick=()=>{ selectedCat=(selectedCat===cat?null:cat); renderParcels(); drawMap(); renderCategories(); };
+        const del=document.createElement('button'); del.className='btn'; del.textContent='Șterge';
+        del.onclick=()=>{ if(!confirm('Ștergi categoria?')) return; categories=categories.filter(c=>c!==cat); features.forEach(f=>{ f.categories=(f.categories||[]).filter(c=>c!==cat); }); if(selectedCat===cat) selectedCat=null; save(LS_CATS,categories); save(LS_FEATURES,features); renderCategories(); renderParcels(); drawMap(); };
+        right.appendChild(sel); right.appendChild(del);
+        row.appendChild(right); box.appendChild(row);
+      });
+    }
+    document.getElementById('addCat').onclick=()=>{
+      const v=document.getElementById('newCat').value.trim(); if(!v) return; if(!categories.includes(v)) categories.push(v); save(LS_CATS,categories); document.getElementById('newCat').value=''; renderCategories();
+    };
+
+    // --- Parcels list ---
+    function renderParcels(){
+      const box=document.getElementById('parcelList'); box.innerHTML='';
+      const items=getVisibleFeatures();
+      if(!items.length){ box.innerHTML='<div class="muted">Nu există parcele (încarcă GeoJSON sau schimbă filtrul).</div>'; return; }
+      items.forEach(f=>{
+        const row=document.createElement('div'); row.className='row';
+        const left=document.createElement('div'); left.innerHTML=`<div><strong>${escapeHtml(f.name||'Parcelă')}</strong></div><div class="tiny muted">${(f.categories||[]).join(', ') || 'fără categorie'}</div>`;
+        const right=document.createElement('div');
+        const btnFocus=document.createElement('button'); btnFocus.className='btn'; btnFocus.textContent='Arată'; btnFocus.onclick=()=>{ map.setView(centerOf(f.coords), 17); };
+        const btnCats=document.createElement('button'); btnCats.className='btn'; btnCats.textContent='Categorii…'; btnCats.onclick=()=>editCategoriesFor(f);
+        const btnNav=document.createElement('a'); btnNav.className='btn'; btnNav.textContent='GPS'; btnNav.target='_blank'; const c=centerOf(f.coords); btnNav.href=`https://www.google.com/maps/dir/?api=1&destination=${c[0]},${c[1]}`;
+        right.appendChild(btnFocus); right.appendChild(btnCats); right.appendChild(btnNav);
+        row.appendChild(left); row.appendChild(right); box.appendChild(row);
+      });
+    }
+
+    function editCategoriesFor(f){
+      const input=prompt(`Categorii (separate prin virgulă) pentru ${f.name}:`, (f.categories||[]).join(', '));
+      if(input===null) return;
+      const wanted=input.split(',').map(s=>s.trim()).filter(Boolean);
+      wanted.forEach(c=>{ if(!categories.includes(c)) categories.push(c); });
+      f.categories=wanted; save(LS_FEATURES,features); save(LS_CATS,categories); renderCategories(); renderParcels(); drawMap();
+    }
+
+    // --- Import / Export ---
+    document.getElementById('file').addEventListener('change',(e)=>{
+      const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{
+        try{
+          const gj=JSON.parse(r.result); const feats=(gj.type==='FeatureCollection')?gj.features:(gj.type?[gj]:[]);
+          const toAdd=[];
+          for(const ft of feats){
+            const g=ft.geometry||{}; if(!g||!g.type) continue; let ring=null;
+            if(g.type==='Polygon'){ ring=g.coordinates[0].map(([lng,lat])=>[lat,lng]); }
+            else if(g.type==='MultiPolygon'){ ring=g.coordinates[0][0].map(([lng,lat])=>[lat,lng]); }
+            else continue;
+            const prop=ft.properties||{}; const name=String(prop.name||prop.Nume||prop.nume||prop.ID||prop.id||prop.parcela||'Parcelă');
+            const cats = Array.isArray(prop.categories)?prop.categories:(typeof prop.categories==='string'?prop.categories.split(',').map(s=>s.trim()).filter(Boolean):[]);
+            cats.forEach(c=>{ if(!categories.includes(c)) categories.push(c); });
+            toAdd.push({ id: rid(), name, coords:[ring], props:prop, categories: cats });
+          }
+          features = toAdd.concat(features);
+          save(LS_FEATURES,features); save(LS_CATS,categories);
+          renderCategories(); renderParcels(); drawMap();
+          if(toAdd[0]) map.setView(centerOf(toAdd[0].coords), 15);
+        }catch(e){ alert('Fișier invalid (GeoJSON Poligon/MultiPoligon)'); }
+      }; r.readAsText(f);
+    });
+    document.getElementById('export').addEventListener('click',()=>{
+      const vis=getVisibleFeatures();
+      const out={ type:'FeatureCollection', features: vis.map(f=>({ type:'Feature', properties:Object.assign({}, f.props||{}, {name:f.name, categories:f.categories||[]}), geometry:{ type:'Polygon', coordinates:[ f.coords[0].map(([lat,lng])=>[lng,lat]) ] } })) };
+      const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='parcele_export.geojson'; a.click();
+    });
+    document.getElementById('search').addEventListener('input',()=>{ renderParcels(); drawMap(); });
+
+    // --- utils ---
+    function rid(){ try{ return crypto.randomUUID(); } catch { return 'id-'+Math.random().toString(36).slice(2,10); } }
+    function escapeHtml(s){ return String(s).replace(/[&<>'"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+    // init
+    renderCategories(); renderParcels(); drawMap();
   </script>
 </body>
 </html>

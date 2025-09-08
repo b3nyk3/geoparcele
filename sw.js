@@ -1,5 +1,5 @@
 
-const CACHE = 'geoparcele-v1';
+const CACHE = 'geoparcele-v3';
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
