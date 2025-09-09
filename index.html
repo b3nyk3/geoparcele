@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>GeoParcele – Safe v13 (No SW)</title>
+<title>GeoParcele – Safe v14 (No SW)</title>
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#111827" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -68,7 +68,7 @@
   <div id="errbox"></div>
 
   <script>
-  // error overlay (shows full stack when possible)
+  // error overlay
   window.addEventListener('error', function(e){
     var box=document.getElementById('errbox');
     box.style.display='block';
@@ -81,14 +81,13 @@
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script>
   (function(){
-    // firm color helpers
     var FIXED = { 'agroarn':'#ef4444', 'agrobaza':'#f59e0b', 'emese':'#2563eb' };
     var PALETTE = ['#22c55e','#06b6d4','#8b5cf6','#f97316','#14b8a6','#a855f7','#ef4444','#3b82f6','#f59e0b','#10b981'];
-    var firmColors = load('geoparcele@firmColors@v13') || {};
+    var firmColors = load('geoparcele@firmColors@v14') || {};
 
-    var LS_FEATURES='geoparcele@features@v13';
-    var LS_FIRM_TOGGLE='geoparcele@firmToggles@v7';
-    var LS_CATS='geoparcele@categories@v7';
+    var LS_FEATURES='geoparcele@features@v14';
+    var LS_FIRM_TOGGLE='geoparcele@firmToggles@v8';
+    var LS_CATS='geoparcele@categories@v8';
     var features = load(LS_FEATURES) || [];
     var firmToggle = load(LS_FIRM_TOGGLE) || {};
     var categories = load(LS_CATS) || [];
@@ -101,7 +100,7 @@
       if(!firmColors[key]){
         var h=0; for(var i=0;i<key.length;i++){ h = (h*31 + key.charCodeAt(i))>>>0; }
         firmColors[key] = PALETTE[h % PALETTE.length];
-        save('geoparcele@firmColors@v13', firmColors);
+        save('geoparcele@firmColors@v14', firmColors);
       }
       return firmColors[key];
     }
@@ -148,28 +147,26 @@
             }
             save(LS_CATS, categories);
           }
-          var feats=gj.features||[]; var out=[]; var newFirms={};
+          var feats=gj.features||[]; var out=[]; var bad=0;
           for(var i=0;i<feats.length;i++){
             var ft=feats[i]; var p=ft.properties||{}; var g=ft.geometry||{};
-            if(!g || (g.type!=='Polygon' && g.type!=='MultiPolygon')) continue;
-            var parts = (g.type==='Polygon') ? [g.coordinates] : g.coordinates;
+            if(!g){ bad++; continue; }
+            var rings = extractRings(g);
+            if(!rings.length){ bad++; continue; }
             var std = mapProps(p);
             var firm = std.firm || '(fără firmă)';
-            for(var j=0;j<parts.length;j++){
-              var poly=parts[j];
-              var ringLatLng = poly[0].map(function(xy){ return [xy[1], xy[0]]; });
-              out.push({ id: rid(), coords:[ringLatLng], firm:firm, nrfiz:std.nrfiz, nrparc:std.nrparc, cultura:std.cultura, areaHa: std.areaHa!=null?std.areaHa:null });
+            for(var j=0;j<rings.length;j++){
+              out.push({ id: rid(), coords:[rings[j]], firm:firm, nrfiz:std.nrfiz, nrparc:std.nrparc, cultura:std.cultura, areaHa: std.areaHa!=null?std.areaHa:null });
             }
-            newFirms[firm]=true;
           }
-          // merge features
           features = out.concat(features); 
           save(LS_FEATURES, features);
-          // ensure toggles for new firms default true
+          // setup firm toggles default true
           var names = uniqueFirms(features);
           for(var k=0;k<names.length;k++){ if(typeof firmToggle[names[k]]==='undefined'){ firmToggle[names[k]] = true; } }
           save(LS_FIRM_TOGGLE, firmToggle);
           redraw();
+          if(bad>0){ showErr('Atenție: ' + bad + ' obiect(e) din GeoJSON au fost sărite din cauza unei geometrii goale sau invalide.'); }
         }catch(err){ showErr('GeoJSON invalid: '+(err.message||String(err))); }
       };
       r.readAsText(f);
@@ -194,20 +191,6 @@
       }
       var blob=new Blob([JSON.stringify(out,null,2)], {type:'application/json'});
       var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='parcele.geojson'; a.click();
-    });
-
-    // Draw event
-    map.on(L.Draw.Event.CREATED, function (evt) {
-      var layer = evt.layer;
-      var latlngs = layer.getLatLngs()[0].map(function(ll){ return [ll.lat, ll.lng]; });
-      var nrfiz = prompt('Nr.Bloc Fizic?')||'';
-      var nrparc = prompt('Nr.Parcela Agricola?')||'';
-      var cultura = prompt('Nume Cultura?')||'';
-      var firm = prompt('Firmă? (ex: AgroARN)')||'(fără firmă)';
-      features.unshift({ id: rid(), coords:[latlngs], nrfiz:nrfiz, nrparc:nrparc, cultura:cultura, firm:firm, areaHa:null });
-      save(LS_FEATURES, features);
-      if(typeof firmToggle[firm]==='undefined'){ firmToggle[firm]=true; save(LS_FIRM_TOGGLE, firmToggle); }
-      redraw(); map.removeLayer(layer);
     });
 
     function renderFirms(){
@@ -287,6 +270,8 @@
         if(f.firm && firmToggle[f.firm]===false) continue;
         var hay = joinNonEmpty([f.nrfiz,f.nrparc,f.cultura,f.firm,f.category],' ').toLowerCase();
         if(q && hay.indexOf(q)===-1) continue;
+        // category visibility
+        if(f.category){ var cat=findCat(f.category); if(cat && cat.enabled===false) continue; }
         res.push(f);
       }
       return res;
@@ -314,7 +299,57 @@
       if(meMarker) meMarker.bringToFront(); if(accCircle) accCircle.bringToFront();
     }
 
-    // helpers
+    // geometry helpers
+    function extractRings(geom){
+      var t = geom.type;
+      var c = geom.coordinates;
+      if(!c) return [];
+      // normalize nesting to array of rings
+      // cases:
+      // Polygon -> [ [ring1], [ring2] ... ]
+      // MultiPolygon -> [ [ [ring1], ... ], [ [ring1], ... ] ]
+      // Sometimes broken shapes: directly a ring [[x,y],...]
+      var polys=[];
+      if(t==='Polygon'){
+        if(c.length && typeof c[0][0]==='number'){ // [[x,y],...] ring directly
+          polys = [ [ c ] ];
+        } else {
+          polys = [ c ];
+        }
+      } else if(t==='MultiPolygon'){
+        polys = c;
+        if(polys.length && polys[0] && typeof polys[0][0][0]==='number'){ // broken: one level missing
+          polys = [ polys ];
+        }
+      } else {
+        return [];
+      }
+      var rings=[];
+      for(var i=0;i<polys.length;i++){
+        var ringsOfPoly = polys[i];
+        if(!ringsOfPoly || !ringsOfPoly.length) continue;
+        var ring = ringsOfPoly[0]; // outer ring
+        if(!ring || !ring.length) continue;
+        var latlngs = [];
+        for(var j=0;j<ring.length; j++){
+          var pt = ring[j];
+          if(!pt || pt.length<2) continue;
+          var x=Number(pt[0]), y=Number(pt[1]);
+          if(!isFinite(x) || !isFinite(y)) continue;
+          // Heuristic: default lon,lat; if x in [-90,90] and y in [-180,180] and |x|> |y|? still ambiguous; keep default.
+          var lat = y, lng = x;
+          // sanity clamp: if lat out of bounds but lng ok, swap
+          if(Math.abs(lat)>90 && Math.abs(lng)<=180){ lat = x; lng = y; }
+          latlngs.push([lat,lng]);
+        }
+        if(latlngs.length>=4){
+          rings.push(latlngs);
+        }
+      }
+      return rings;
+    }
+
+    // misc helpers
     function uniqueFirms(arr){ var set={}, out=[]; for(var i=0;i<arr.length;i++){ var n=arr[i].firm||'(fără firmă)'; if(!set[n]){ set[n]=1; out.push(n);} } out.sort(); return out; }
     function joinNonEmpty(arr, sep){ var out=[]; for(var i=0;i<arr.length;i++){ var s=arr[i]; if(s!=null && String(s).trim().length>0) out.push(String(s)); } return out.join(sep); }
     function colorOfFeature(f){
