@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>GeoParcele – Safe v11 (No SW)</title>
+<title>GeoParcele – Safe v12 (No SW)</title>
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#111827" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -24,7 +24,6 @@
   .row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px dashed #f0f0f0; } .row:last-child{ border-bottom:none; }
   .muted { color:#6b7280; font-size:12px; } .tiny { font-size:12px; }
   .btn { background:#fff; border:1px solid #e5e7eb; padding:6px 8px; border-radius:8px; cursor:pointer; }
-  .leaflet-tooltip.parcel-label { background: rgba(255,255,255,.95); border: 1px solid #e5e7eb; border-radius: 8px; padding: 2px 6px; box-shadow:0 2px 8px rgba(0,0,0,.08); font-size:12px; color:#111827; pointer-events:none; opacity:1; }
   .colorbox{ width:22px; height:22px; border-radius:6px; border:1px solid #e5e7eb; display:inline-block; vertical-align:middle; }
   #errbox { position:fixed; left:10px; bottom:10px; background:#fee2e2; color:#991b1b; border:1px solid #fecaca; padding:8px 10px; border-radius:8px; font-size:12px; display:none; z-index:2000; max-width:90vw; }
 </style>
@@ -81,12 +80,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <script>
   (function(){
-    // ES5-safe
     var FIRM_COLORS_FIXED = { 'AgroARN':'#ef4444', 'AgroBAZA':'#f59e0b', 'Emese':'#2563eb' };
     var FIRMS = ['AgroARN','AgroBAZA','Emese'];
-    var LS_FEATURES='geoparcele@features@v11';
-    var LS_FIRM_TOGGLE='geoparcele@firmToggles@v5';
-    var LS_CATS='geoparcele@categories@v5';
+    var LS_FEATURES='geoparcele@features@v12';
+    var LS_FIRM_TOGGLE='geoparcele@firmToggles@v6';
+    var LS_CATS='geoparcele@categories@v6';
     var features = load(LS_FEATURES) || [];
     var firmToggle = load(LS_FIRM_TOGGLE) || { AgroARN:true, AgroBAZA:true, Emese:true };
     var categories = load(LS_CATS) || [];
@@ -94,17 +92,10 @@
 
     var sidebar=document.getElementById('sidebar');
     var hamburger=document.getElementById('hamburger');
-    function toggleMenu(){
-      if(sidebar.classList.contains('open')){ sidebar.classList.remove('open'); hamburger.setAttribute('aria-expanded','false'); }
-      else { sidebar.classList.add('open'); hamburger.setAttribute('aria-expanded','true'); }
-    }
+    function toggleMenu(){ if(sidebar.classList.contains('open')){ sidebar.classList.remove('open'); hamburger.setAttribute('aria-expanded','false'); } else { sidebar.classList.add('open'); hamburger.setAttribute('aria-expanded','true'); } }
     hamburger.onclick = toggleMenu;
 
-    // Map init
-    if(typeof L === 'undefined'){
-      showErr('Leaflet nu s-a încărcat. Verifică conexiunea la internet.');
-      return;
-    }
+    if(typeof L === 'undefined'){ showErr('Leaflet nu s-a încărcat. Verifică internetul.'); return; }
     var map=L.map('map').setView([47.1585,23.5681],10);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
 
@@ -227,7 +218,6 @@
       for(var k=0;k<cbs.length;k++){ cbs[k].onchange=function(){ var i=parseInt(this.dataset.idx,10); categories[i].enabled=this.checked; save(LS_CATS,categories); redraw(); }; }
       var cols=el.querySelectorAll('input[type=color]');
       for(var k2=0;k2<cols.length;k2++){ cols[k2].oninput=function(){ var i=parseInt(this.dataset.idx,10); categories[i].color=this.value; save(LS_CATS,categories); redraw(); }; }
-      // dropdown for modal would be here (omitted in safe build)
     }
     function renderParcels(){
       var el=document.getElementById('parcelList'); el.innerHTML='';
@@ -239,9 +229,12 @@
         var row=document.createElement('div'); row.className='row';
         row.innerHTML = '<div><strong>'+esc(title)+'</strong><div class="tiny muted">'+esc(info)+'</div></div>';
         var right=document.createElement('div');
-        var btnFocus=document.createElement('button'); btnFocus.className='btn'; btnFocus.textContent='Arată'; (function(ff){ btnFocus.onclick=function(){ map.setView(center(ff.coords), 17); }; })(f);
-        var btnNav=document.createElement('a'); btnNav.className='btn'; btnNav.textContent='GPS'; btnNav.target='_blank'; var c=center(f.coords); btnNav.href='https://www.google.com/maps/dir/?api=1&destination='+c[0]+','+c[1];
-        right.appendChild(btnFocus); right.appendChild(btnNav);
+        (function(ff){
+          var btnFocus=document.createElement('button'); btnFocus.className='btn'; btnFocus.textContent='Arată'; btnFocus.onclick=function(){ map.setView(center(ff.coords), 17); };
+          var c=center(ff.coords);
+          var btnNav=document.createElement('a'); btnNav.className='btn'; btnNav.textContent='GPS'; btnNav.target='_blank'; btnNav.href='https://www.google.com/maps/dir/?api=1&destination='+c[0]+','+c[1];
+          right.appendChild(btnFocus); right.appendChild(btnNav);
+        })(f);
         row.appendChild(right); el.appendChild(row);
       }
     }
@@ -271,21 +264,23 @@
     }
 
     function redraw(){
-      // clear shapes
       map.eachLayer(function(l){ if(!(l instanceof L.TileLayer) && l!==meMarker && l!==accCircle) map.removeLayer(l); });
       drawnGroup.clearLayers();
       var list=filtered();
       for(var i=0;i<list.length;i++){
         var f=list[i];
         var color = colorOfFeature(f);
-        var poly=L.polygon(f.coords, { color:color, weight:2 }).addTo(map);
-        var labelParts = [f.nrfiz, f.nrparc, fmtHa(f.areaHa), f.cultura];
-        var label = joinNonEmpty(labelParts, ' • ');
-        poly.bindTooltip(label, { permanent:true, direction:'center', className:'parcel-label' });
-        (function(ff){
+        var poly=L.polygon(f.coords, { color:color, weight:2, fillOpacity:0.35, fillColor:color }).addTo(map);
+        // NO permanent tooltip. Info only on click:
+        (function(ff, polyRef){
           var c=center(ff.coords);
-          poly.bindPopup('<strong>'+esc(ff.nrparc||ff.nrfiz||'Parcelă')+'</strong><div class="tiny">'+esc(ff.firm||'')+'</div><div class="tiny">Suprafață: '+fmtHa(ff.areaHa)+'</div><div class="tiny">'+esc(ff.cultura||'')+'</div><div style="margin-top:6px;"><a class="btn" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination='+c[0]+','+c[1]+'">Navighează</a></div>');
-        })(f);
+          var html = '<strong>'+esc(ff.nrparc||ff.nrfiz||'Parcelă')+'</strong>'+
+                     '<div class="tiny">'+esc(ff.firm||'')+'</div>'+
+                     '<div class="tiny">Suprafață: '+fmtHa(ff.areaHa)+'</div>'+
+                     '<div class="tiny">'+esc(ff.cultura||'')+'</div>'+
+                     '<div style="margin-top:6px;"><a class="btn" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination='+c[0]+','+c[1]+'">Navighează</a></div>';
+          polyRef.bindPopup(html);
+        })(f, poly);
       }
       renderFirms(); renderCats(); renderParcels();
       if(meMarker) meMarker.bringToFront(); if(accCircle) accCircle.bringToFront();
@@ -328,7 +323,6 @@
     function findCat(name){ for(var i=0;i<categories.length;i++){ if(categories[i].name===name) return categories[i]; } return null; }
     function showErr(msg){ var b=document.getElementById('errbox'); b.textContent=msg; b.style.display='block'; }
 
-    // initial draw
     redraw();
   })();
   </script>
