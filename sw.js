@@ -1,9 +1,15 @@
 
-const CACHE = 'geoparcele-v7';
+const CACHE = 'geoparcele-v8';
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
-    await cache.addAll(['/', '/index.html', '/manifest.json']);
+    await cache.addAll(['index.html', 'manifest.json']);
+  })());
+});
+self.addEventListener('activate', (e) => {
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
   })());
 });
 self.addEventListener('fetch', (e) => {

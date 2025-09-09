@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>GeoParcele – Firme, Categorii & Desen</title>
-  <link rel="manifest" href="/manifest.json" />
+  <title>GeoParcele – Firme, Categorii & Desen (FIX)</title>
+  <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#111827" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
@@ -49,7 +49,7 @@
     <strong>GeoParcele</strong>
     <label class="btn">Import GeoJSON <input id="file" type="file" accept="application/geo+json,application/json,.geojson,.json" /></label>
     <button id="export" class="btn">Export</button>
-    <input id="search" placeholder="Caută…" style="flex:1; min-width:180px; padding:8px 10px; border:1px solid var(--line); border-radius:10px;">
+    <input id="search" placeholder="Caută…" style="flex:1; min-width:180px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px;">
     <button id="install" class="btn">Instalează</button>
   </header>
 
@@ -70,14 +70,10 @@
         <div style="margin-top:8px; display:flex; gap:8px;">
           <button id="addCat" class="btn">Adaugă categorie</button>
         </div>
-        <div class="tiny muted">Parcela dintr-o categorie folosește culoarea categoriei.</div>
       </div>
       <div class="section">
         <h3>Parcele</h3>
         <div id="parcelList" style="max-height:40vh; overflow:auto;"></div>
-      </div>
-      <div class="section tiny muted">
-        Desenează o parcelă și completează informațiile – se salvează local și la Export se includ în GeoJSON (cu categorie).
       </div>
     </aside>
     <div id="map"></div>
@@ -93,39 +89,20 @@
       <div class="hd" id="modalTitle">Adaugă parcelă</div>
       <div class="bd">
         <div class="flex">
-          <div>
-            <label class="small">Nr.Bloc Fizic</label>
-            <input id="f_nrbloc" type="text" placeholder="ex: 84a">
-          </div>
-          <div>
-            <label class="small">Nr.Parcela Agricola</label>
-            <input id="f_nrparc" type="text" placeholder="ex: 12">
-          </div>
+          <div><label class="small">Nr.Bloc Fizic</label><input id="f_nrbloc" type="text" placeholder="ex: 84a"></div>
+          <div><label class="small">Nr.Parcela Agricola</label><input id="f_nrparc" type="text" placeholder="ex: 12"></div>
         </div>
         <div class="flex">
-          <div>
-            <label class="small">Nume Cultura</label>
-            <input id="f_cultura" type="text" placeholder="ex: lucernă">
-          </div>
-          <div>
-            <label class="small">Suprafață (ha)</label>
-            <input id="f_area" type="number" step="0.0001" placeholder="se calculează automat">
-          </div>
+          <div><label class="small">Nume Cultura</label><input id="f_cultura" type="text" placeholder="ex: lucernă"></div>
+          <div><label class="small">Suprafață (ha)</label><input id="f_area" type="number" step="0.0001" placeholder="se calculează automat"></div>
         </div>
         <div class="flex">
-          <div>
-            <label class="small">Firmă</label>
+          <div><label class="small">Firmă</label>
             <select id="f_firma">
-              <option value="">(fără)</option>
-              <option>AgroARN</option>
-              <option>AgroBAZA</option>
-              <option>Emese</option>
+              <option value="">(fără)</option><option>AgroARN</option><option>AgroBAZA</option><option>Emese</option>
             </select>
           </div>
-          <div>
-            <label class="small">Categorie</label>
-            <select id="f_cat"></select>
-          </div>
+          <div><label class="small">Categorie</label><select id="f_cat"></select></div>
         </div>
         <div class="tiny muted">Dacă la suprafață lași gol, o calculăm automat din poligon.</div>
       </div>
@@ -136,22 +113,28 @@
     </div>
   </div>
 
+  <script>
+    window.addEventListener('error', (e)=>{
+      console.error('Eroare JS:', e.message, e.filename, e.lineno);
+      // alert only once to avoid loops
+      if(!window.__err_shown){ alert('A apărut o eroare în script. Fă un refresh hard (CTRL+F5).'); window.__err_shown=true; }
+    });
+  </script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-  <script src="/sw-register.js"></script>
+  <script src="sw-register.js"></script>
   <script>
     const FIRM_COLORS_FIXED = { 'AgroARN':'#ef4444', 'AgroBAZA':'#f59e0b', 'Emese':'#2563eb' };
     const FIRMS = Object.keys(FIRM_COLORS_FIXED);
-    const LS_FEATURES='geoparcele@features@v7';
-    const LS_FIRM_TOGGLE='geoparcele@firmToggles@v1';
-    const LS_CATS='geoparcele@categories@v1';
+    const LS_FEATURES='geoparcele@features@v8';
+    const LS_FIRM_TOGGLE='geoparcele@firmToggles@v2';
+    const LS_CATS='geoparcele@categories@v2';
     let features = load(LS_FEATURES) || [];
     let firmToggle = load(LS_FIRM_TOGGLE) || { AgroARN:true, AgroBAZA:true, Emese:true };
     let categories = load(LS_CATS) || [];
     let follow=false;
 
-    // PWA install
     let deferredPrompt=null;
     window.addEventListener('beforeinstallprompt',(e)=>{e.preventDefault(); deferredPrompt=e;});
     document.getElementById('install').addEventListener('click', async ()=>{
@@ -159,15 +142,12 @@
       else alert('Android: ⋮ → Add to Home screen. iPhone: Share → Add to Home Screen.');
     });
 
-    // Sidebar toggle
     const sidebar=document.getElementById('sidebar');
     document.getElementById('hamburger').onclick=()=>sidebar.classList.toggle('open');
 
-    // Map
     let map=L.map('map').setView([47.1585,23.5681],10);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
 
-    // Draw control
     const drawControl = new L.Control.Draw({
       draw: { marker:false, circle:false, rectangle:false, polyline:false, circlemarker:false, polygon: { allowIntersection:false, showArea:true, shapeOptions:{ color:'#111827' } } },
       edit: { featureGroup: new L.FeatureGroup().addTo(map) }
@@ -175,7 +155,6 @@
     map.addControl(drawControl);
     let drawnLayerGroup = drawControl._toolbars.edit.options.featureGroup;
 
-    // My position
     let meMarker=null, accCircle=null;
     if('geolocation' in navigator){
       navigator.geolocation.watchPosition((pos)=>{
@@ -188,10 +167,8 @@
     }
     document.getElementById('locate').onclick=()=>{ if(meMarker){ map.setView(meMarker.getLatLng(), 16); } };
     document.getElementById('follow').onclick=()=>{ follow=!follow; document.getElementById('follow').textContent = follow ? '⏸' : '▶︎'; };
+    document.getElementById('toggleDraw').onclick=()=>{ alert('Folosește bara Leaflet Draw (stânga sus) pentru a trasa poligonul.'); };
 
-    document.getElementById('toggleDraw').onclick=()=>{ alert('Folosește bara Leaflet Draw (stânga sus): selectează poligonul, desenează și apoi completează formularul.'); };
-
-    // Import GeoJSON (standard sau cu categorii)
     document.getElementById('file').addEventListener('change',(e)=>{
       const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{
         try{
@@ -226,11 +203,10 @@
           features = toAdd.concat(features);
           save(LS_FEATURES, features);
           redraw();
-        }catch(e){ alert('GeoJSON invalid'); }
+        }catch(err){ console.error(err); alert('GeoJSON invalid'); }
       }; r.readAsText(f);
     });
 
-    // Export
     document.getElementById('export').addEventListener('click',()=>{
       const out = {
         type:'FeatureCollection',
@@ -253,7 +229,6 @@
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='parcele_cu_categorii.geojson'; a.click();
     });
 
-    // Draw event
     map.on(L.Draw.Event.CREATED, function (evt) {
       const layer = evt.layer;
       const latlngs = layer.getLatLngs()[0].map(ll => [ll.lat, ll.lng]);
@@ -270,15 +245,14 @@
       };
     });
 
-    // Firms UI
     function renderFirms(){
       const el=document.getElementById('firmList'); el.innerHTML='';
       for(const firm of FIRMS){
         const row=document.createElement('div'); row.className='row';
-        row.innerHTML = \`<label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-            <input type="checkbox" \${firmToggle[firm]?'checked':''} data-firm="\${firm}"/>
-            <span class="colorbox" style="background:\${FIRM_COLORS_FIXED[firm]};"></span>\${firm}
-          </label>\`;
+        row.innerHTML = `<label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" ${firmToggle[firm]?'checked':''} data-firm="${firm}"/>
+            <span class="colorbox" style="background:${FIRM_COLORS_FIXED[firm]};"></span>${firm}
+          </label>`;
         el.appendChild(row);
       }
       el.querySelectorAll('input[type=checkbox]').forEach(inp=>{
@@ -286,29 +260,31 @@
       });
     }
 
-    // Categories UI
     function renderCats(){
       const el=document.getElementById('catList'); el.innerHTML='';
       if(!categories.length){ el.innerHTML='<div class="muted tiny">Nu ai nicio categorie. Adaugă mai jos.</div>'; }
       categories.forEach((c, idx)=>{
         const row=document.createElement('div'); row.className='row';
-        const left=document.createElement('div');
-        left.innerHTML = \`<label style="display:flex; align-items:center; gap:8px;">
-            <input type="checkbox" \${c.enabled!==false?'checked':''} data-idx="\${idx}"/>
-            <input type="color" value="\${c.color||'#06b6d4'}" data-idx="\${idx}" style="width:28px; height:28px; border:none; background:transparent; padding:0;" title="Culoare categorie"/>
-            <span>\${c.name}</span>
-        </label>\`;
-        const right=document.createElement('div');
-        const rename=document.createElement('button'); rename.className='btn'; rename.textContent='Redenumește';
-        rename.onclick=()=>{ const nu=prompt('Nume nou pentru categorie:', c.name); if(!nu) return; c.name=nu; save(LS_CATS, categories); renderCats(); redraw(); };
-        const del=document.createElement('button'); del.className='btn'; del.textContent='Șterge';
-        del.onclick=()=>{ if(!confirm('Ștergi categoria?')) return; const name=c.name; categories.splice(idx,1); features.forEach(f=>{ if(f.category===name) f.category=null; }); save(LS_CATS, categories); save(LS_FEATURES, features); renderCats(); redraw(); };
-        right.appendChild(rename); right.appendChild(del);
-        row.appendChild(left); row.appendChild(right); el.appendChild(row);
+        row.innerHTML = `<label style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" ${c.enabled!==false?'checked':''} data-idx="${idx}"/>
+            <input type="color" value="${c.color||'#06b6d4'}" data-idx="${idx}" style="width:28px; height:28px; border:none; background:transparent; padding:0;" title="Culoare categorie"/>
+            <span>${c.name}</span>
+          </label>
+          <div>
+            <button class="btn" data-act="rename" data-idx="${idx}">Redenumește</button>
+            <button class="btn" data-act="delete" data-idx="${idx}">Șterge</button>
+          </div>`;
+        el.appendChild(row);
       });
       el.querySelectorAll('input[type=checkbox]').forEach(inp=>{ inp.onchange=()=>{ const i=Number(inp.dataset.idx); categories[i].enabled = inp.checked; save(LS_CATS,categories); redraw(); }; });
       el.querySelectorAll('input[type=color]').forEach(inp=>{ inp.oninput=()=>{ const i=Number(inp.dataset.idx); categories[i].color = inp.value; save(LS_CATS,categories); redraw(); }; });
-      // modal category select
+      el.querySelectorAll('button[data-act]').forEach(btn=>{
+        btn.onclick=()=>{
+          const i=Number(btn.dataset.idx);
+          if(btn.dataset.act==='rename'){ const nu=prompt('Nume nou pentru categorie:', categories[i].name); if(!nu) return; categories[i].name=nu; save(LS_CATS, categories); renderCats(); redraw(); }
+          if(btn.dataset.act==='delete'){ if(!confirm('Ștergi categoria?')) return; const name=categories[i].name; categories.splice(i,1); features.forEach(f=>{ if(f.category===name) f.category=null; }); save(LS_CATS, categories); save(LS_FEATURES, features); renderCats(); redraw(); }
+        };
+      });
       const sel=document.getElementById('f_cat'); sel.innerHTML='<option value="">(fără)</option>'; categories.forEach(c=>{ const o=document.createElement('option'); o.value=c.name; o.textContent=c.name; sel.appendChild(o); });
     }
     document.getElementById('addCat').onclick=()=>{
@@ -320,25 +296,25 @@
       save(LS_CATS, categories); renderCats(); redraw();
     };
 
-    // Parcels list
     function renderParcels(){
       const el=document.getElementById('parcelList'); el.innerHTML='';
       const list = filteredFeatures();
       if(!list.length){ el.innerHTML='<div class="muted">Nu există parcele (încarcă sau desenează).</div>'; return; }
       list.forEach(f=>{
-        const row=document.createElement('div'); row.className='row';
         const title = f.nrparc || f.nrfiz || 'Parcelă';
         const info = [f.firm, fmtHa(f.areaHa), f.cultura, f.category?('cat:'+f.category):null].filter(Boolean).join(' · ');
-        row.innerHTML = \`<div><strong>\${escapeHtml(title)}</strong><div class="tiny muted">\${escapeHtml(info)}</div></div>\`;
+        const row=document.createElement('div'); row.className='row';
+        row.innerHTML = `<div><strong>${escapeHtml(title)}</strong><div class="tiny muted">${escapeHtml(info)}</div></div>`;
         const right=document.createElement('div');
         const btnFocus=document.createElement('button'); btnFocus.className='btn'; btnFocus.textContent='Arată'; btnFocus.onclick=()=>{ map.setView(centerOf(f.coords), 17); };
-        const btnNav=document.createElement('a'); btnNav.className='btn'; btnNav.textContent='GPS'; btnNav.target='_blank'; const c=centerOf(f.coords); btnNav.href=\`https://www.google.com/maps/dir/?api=1&destination=\${c[0]},\${c[1]}\`;
-        right.appendChild(btnFocus); right.appendChild(btnNav); row.appendChild(right); el.appendChild(row);
+        const btnNav=document.createElement('a'); btnNav.className='btn'; btnNav.textContent='GPS'; btnNav.target='_blank'; const c=centerOf(f.coords); btnNav.href=`https://www.google.com/maps/dir/?api=1&destination=${c[0]},${c[1]}`;
+        right.appendChild(btnFocus); right.appendChild(btnNav);
+        row.appendChild(right); el.appendChild(row);
       });
     }
 
-    // Search & filter
     document.getElementById('search').addEventListener('input', redraw);
+
     function filteredFeatures(){
       const q=document.getElementById('search').value.trim().toLowerCase();
       return features.filter(f=>{
@@ -355,8 +331,8 @@
       if(f.firm && FIRM_COLORS_FIXED[f.firm]) return FIRM_COLORS_FIXED[f.firm];
       return '#06b6d4';
     }
+    function categoryColorOf(name){ const c=categories.find(x=>x.name===name); return c ? (c.color||null) : null; }
 
-    // Modal helpers
     function openParcelModal(preset){
       document.getElementById('modal').style.display='flex';
       document.getElementById('modalTitle').textContent='Adaugă parcelă';
@@ -379,7 +355,6 @@
       return { nrfiz, nrparc, cultura, areaHa: areaTxt?Number(areaTxt):null, firm, category:cat };
     }
 
-    // Utils
     function save(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
     function load(k){ try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch{return null;} }
     function rid(){ try{ return crypto.randomUUID(); } catch { return 'id-'+Math.random().toString(36).slice(2,10); } }
@@ -396,15 +371,14 @@
       for(const f of list){
         const color = colorOfFeature(f);
         const poly=L.polygon(f.coords, { color, weight:2 }).addTo(map);
-        const label=\`\${escapeHtml(f.nrfiz||'')} • \${escapeHtml(f.nrparc||'')} • \${fmtHa(f.areaHa)} • \${escapeHtml(f.cultura||'')}\`;
+        const label=`${escapeHtml(f.nrfiz||'')} • ${escapeHtml(f.nrparc||'')} • ${fmtHa(f.areaHa)} • ${escapeHtml(f.cultura||'')}`;
         poly.bindTooltip(label,{permanent:true,direction:'center',className:'parcel-label'});
         const c=centerOf(f.coords);
-        poly.bindPopup(\`<strong>\${escapeHtml(f.nrparc||f.nrfiz||'Parcelă')}</strong><div class="tiny">\${escapeHtml(f.firm||'')}</div><div class="tiny">Suprafață: \${fmtHa(f.areaHa)}</div><div class="tiny">\${escapeHtml(f.cultura||'')}</div><div style='margin-top:6px;'><a class='btn' target='_blank' href='https://www.google.com/maps/dir/?api=1&destination=\${c[0]},\${c[1]}'>Navighează</a></div>\`);
+        poly.bindPopup(`<strong>${escapeHtml(f.nrparc||f.nrfiz||'Parcelă')}</strong><div class="tiny">${escapeHtml(f.firm||'')}</div><div class="tiny">Suprafață: ${fmtHa(f.areaHa)}</div><div class="tiny">${escapeHtml(f.cultura||'')}</div><div style='margin-top:6px;'><a class='btn' target='_blank' href='https://www.google.com/maps/dir/?api=1&destination=${c[0]},${c[1]}'>Navighează</a></div>`);
       }
       renderFirms(); renderCats(); renderParcels();
       if(meMarker) meMarker.bringToFront(); if(accCircle) accCircle.bringToFront();
     }
-
     redraw();
   </script>
 </body>
