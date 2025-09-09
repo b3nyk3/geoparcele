@@ -1,5 +1,5 @@
 
-const CACHE = 'geoparcele-v9';
+const CACHE = 'geoparcele-v10';
 self.addEventListener('install', e => {
   e.waitUntil((async()=>{ const c=await caches.open(CACHE); await c.addAll(['index.html','manifest.json']); })());
 });

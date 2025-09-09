@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>GeoParcele v9</title>
+<title>GeoParcele v10</title>
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#111827" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -11,27 +11,27 @@
 <style>
   :root { --bg:#f6f7f8; --ink:#111827; --line:#e5e7eb; --brand:#111827; }
   * { box-sizing:border-box; } body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--ink); }
-  header { position:fixed; top:0; left:0; right:0; height:56px; background:var(--brand); color:#fff; display:flex; align-items:center; gap:8px; padding:0 10px; z-index:50; }
-  #hamburger { width:36px; height:36px; border-radius:10px; border:1px solid #374151; background:#1f2937; color:#fff; }
-  header .btn, header label.btn { background:#fff; color:#111; border:1px solid var(--line); padding:8px 10px; border-radius:10px; font-size:14px; }
+  header { position:fixed; top:0; left:0; right:0; height:56px; background:var(--brand); color:#fff; display:flex; align-items:center; gap:8px; padding:0 10px; z-index:1000; }
+  #hamburger { width:36px; height:36px; border-radius:10px; border:1px solid #374151; background:#1f2937; color:#fff; cursor:pointer; }
+  header .btn, header label.btn { background:#fff; color:#111; border:1px solid var(--line); padding:8px 10px; border-radius:10px; font-size:14px; cursor:pointer; }
   header input[type=file]{ display:none; }
   #app { position:fixed; top:56px; bottom:0; left:0; right:0; }
-  #sidebar { position:absolute; top:0; bottom:0; left:0; width:360px; max-width:92vw; background:#fff; border-right:1px solid var(--line); box-shadow: 0 10px 30px rgba(0,0,0,.12); transform: translateX(-100%); transition: transform .25s ease; z-index:40; }
+  #sidebar { position:absolute; top:0; bottom:0; left:0; width:360px; max-width:92vw; background:#fff; border-right:1px solid var(--line); box-shadow: 0 10px 30px rgba(0,0,0,.12); transform: translateX(-100%); transition: transform .25s ease; z-index:900; }
   #sidebar.open { transform: translateX(0); } #sidebar .section { border-bottom:1px solid var(--line); padding:10px; } #sidebar h3 { margin:0 0 6px; font-size:14px; }
-  #map { position:absolute; inset:0; }
-  .fab { position:absolute; right:12px; bottom:12px; display:flex; flex-direction:column; gap:10px; z-index:45; }
-  .fab button { width:54px; height:54px; border-radius:999px; border:none; background:#111827; color:#fff; }
+  #map { position:absolute; inset:0; z-index:1; }
+  .fab { position:absolute; right:12px; bottom:12px; display:flex; flex-direction:column; gap:10px; z-index:800; }
+  .fab button { width:54px; height:54px; border-radius:999px; border:none; background:#111827; color:#fff; cursor:pointer; }
   .row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px dashed #f0f0f0; } .row:last-child{ border-bottom:none; }
   .muted { color:#6b7280; font-size:12px; } .tiny { font-size:12px; }
   .btn { background:#fff; border:1px solid #e5e7eb; padding:6px 8px; border-radius:8px; cursor:pointer; }
   .pill { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; border:1px solid #e5e7eb; background:#f9fafb; font-size:12px; }
-  .leaflet-tooltip.parcel-label { background: rgba(255,255,255,.9); border: 1px solid #e5e7eb; border-radius: 8px; padding: 2px 6px; box-shadow:0 2px 8px rgba(0,0,0,.08); font-size:12px; color:#111827; }
+  .leaflet-tooltip.parcel-label { background: rgba(255,255,255,.95); border: 1px solid #e5e7eb; border-radius: 8px; padding: 2px 6px; box-shadow:0 2px 8px rgba(0,0,0,.08); font-size:12px; color:#111827; pointer-events:none; opacity:1; }
   .colorbox{ width:22px; height:22px; border-radius:6px; border:1px solid #e5e7eb; display:inline-block; vertical-align:middle; }
 </style>
 </head>
 <body>
   <header>
-    <button id="hamburger">☰</button>
+    <button id="hamburger" aria-expanded="false" aria-controls="sidebar" title="Meniu">☰</button>
     <strong>GeoParcele</strong>
     <label class="btn">Import GeoJSON <input id="file" type="file" accept="application/geo+json,application/json,.geojson,.json" /></label>
     <button id="export" class="btn">Export</button>
@@ -71,23 +71,35 @@
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <script src="sw-register.js"></script>
   <script>
+  window.addEventListener('DOMContentLoaded', () => {
     const FIRM_COLORS_FIXED = { 'AgroARN':'#ef4444', 'AgroBAZA':'#f59e0b', 'Emese':'#2563eb' };
     const FIRMS = Object.keys(FIRM_COLORS_FIXED);
-    const LS_FEATURES='geoparcele@features@v9';
-    const LS_FIRM_TOGGLE='geoparcele@firmToggles@v3';
-    const LS_CATS='geoparcele@categories@v3';
+    const LS_FEATURES='geoparcele@features@v10';
+    const LS_FIRM_TOGGLE='geoparcele@firmToggles@v4';
+    const LS_CATS='geoparcele@categories@v4';
     let features = load(LS_FEATURES) || [];
     let firmToggle = load(LS_FIRM_TOGGLE) || { AgroARN:true, AgroBAZA:true, Emese:true };
     let categories = load(LS_CATS) || [];
     let follow=false;
 
     const sidebar=document.getElementById('sidebar');
-    document.getElementById('hamburger').onclick=()=>sidebar.classList.toggle('open');
+    const hamburger=document.getElementById('hamburger');
+    const toggleMenu = () => {
+      sidebar.classList.toggle('open');
+      const open = sidebar.classList.contains('open');
+      hamburger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    hamburger.onclick = toggleMenu;
+    document.addEventListener('click', (e)=>{
+      if(e.target && e.target.closest && e.target.closest('#hamburger')) toggleMenu();
+    });
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && sidebar.classList.contains('open')) toggleMenu(); });
 
+    // Map
     let map=L.map('map').setView([47.1585,23.5681],10);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
 
-    // Draw control
+    // Draw
     const drawControl = new L.Control.Draw({
       draw: { marker:false, circle:false, rectangle:false, polyline:false, circlemarker:false, polygon: { allowIntersection:false, showArea:true, shapeOptions:{ color:'#111827' } } },
       edit: { featureGroup: new L.FeatureGroup().addTo(map) }
@@ -95,7 +107,7 @@
     map.addControl(drawControl);
     let drawnLayerGroup = drawControl._toolbars.edit.options.featureGroup;
 
-    // geolocation
+    // Geolocation
     let meMarker=null, accCircle=null;
     if('geolocation' in navigator){
       navigator.geolocation.watchPosition((pos)=>{
@@ -105,11 +117,12 @@
         if(follow){ map.setView(p, Math.max(map.getZoom(), 16)); }
       },()=>{}, {enableHighAccuracy:true, maximumAge:3000, timeout:10000});
     }
-    document.getElementById('locate').onclick=()=>{ if(meMarker){ map.setView(meMarker.getLatLng(), 16); } };
-    document.getElementById('follow').onclick=()=>{ follow=!follow; document.getElementById('follow').textContent = follow ? '⏸' : '▶︎'; };
+    byId('locate').onclick=()=>{ if(meMarker){ map.setView(meMarker.getLatLng(), 16); } };
+    byId('follow').onclick=()=>{ follow=!follow; byId('follow').textContent = follow ? '⏸' : '▶︎'; };
+    byId('toggleDraw').onclick=()=>{ alert('Folosește bara Leaflet Draw (stânga sus) pentru a trasa poligonul.'); };
 
     // Import
-    document.getElementById('file').addEventListener('change',(e)=>{
+    byId('file').addEventListener('change',(e)=>{
       const f=e.target.files[0]; if(!f) return;
       const r=new FileReader();
       r.onload=()=>{
@@ -123,7 +136,7 @@
           for(const ft of feats){
             const p=ft.properties||{}; const g=ft.geometry||{}; if(!g || (g.type!=='Polygon' && g.type!=='MultiPolygon')) continue;
             const parts = (g.type==='Polygon') ? [g.coordinates] : g.coordinates;
-            const std = mapProps(p); // unified
+            const std = mapProps(p);
             for(const poly of parts){
               const ringLatLng = poly[0].map(([lng,lat])=>[lat,lng]);
               out.push({ id: rid(), coords:[ringLatLng], ...std, areaHa: std.areaHa!=null ? std.areaHa : computeAreaHa(ringLatLng) });
@@ -136,7 +149,7 @@
     });
 
     // Export
-    document.getElementById('export').addEventListener('click',()=>{
+    byId('export').addEventListener('click',()=>{
       const out = {
         type:'FeatureCollection',
         features: features.map(f => ({
@@ -158,12 +171,10 @@
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='parcele_cu_categorii.geojson'; a.click();
     });
 
-    // Draw event
     map.on(L.Draw.Event.CREATED, function (evt) {
       const layer = evt.layer;
       const latlngs = layer.getLatLngs()[0].map(ll => [ll.lat, ll.lng]);
       const areaHa = computeAreaHa(latlngs);
-      // simple form via prompt for speed
       const nrfiz = prompt('Nr.Bloc Fizic?')||'';
       const nrparc = prompt('Nr.Parcela Agricola?')||'';
       const cultura = prompt('Nume Cultura?')||'';
@@ -172,15 +183,9 @@
       save(LS_FEATURES, features); map.removeLayer(layer); redraw();
     });
 
-    // UI
-    document.getElementById('addCat').onclick=()=>{
-      const name=document.getElementById('newCatName').value.trim(); const color=document.getElementById('newCatColor').value||'#06b6d4';
-      if(!name) return; if(!categories.find(c=>c.name===name)) categories.push({ name, color, enabled:true });
-      document.getElementById('newCatName').value=''; save(LS_CATS, categories); renderCats(); redraw();
-    };
-
+    // UI renderers
     function renderFirms(){
-      const el=document.getElementById('firmList'); el.innerHTML='';
+      const el=byId('firmList'); el.innerHTML='';
       for(const firm of FIRMS){
         const row=document.createElement('div'); row.className='row';
         row.innerHTML = `<label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
@@ -194,14 +199,14 @@
       });
     }
     function renderCats(){
-      const el=document.getElementById('catList'); el.innerHTML='';
+      const el=byId('catList'); el.innerHTML='';
       if(!categories.length){ el.innerHTML='<div class="muted tiny">Nu ai nicio categorie. Adaugă mai sus.</div>'; }
       categories.forEach((c, idx)=>{
         const row=document.createElement('div'); row.className='row';
         row.innerHTML = `<label style="display:flex; align-items:center; gap:8px;">
             <input type="checkbox" ${c.enabled!==false?'checked':''} data-idx="${idx}"/>
             <input type="color" value="${c.color||'#06b6d4'}" data-idx="${idx}" style="width:28px; height:28px; border:none; background:transparent; padding:0;"/>
-            <span>${c.name}</span>
+            <span>${esc(c.name)}</span>
           </label>`;
         el.appendChild(row);
       });
@@ -209,7 +214,7 @@
       el.querySelectorAll('input[type=color]').forEach(inp=>{ inp.oninput=()=>{ const i=Number(inp.dataset.idx); categories[i].color=inp.value; save(LS_CATS,categories); redraw(); }; });
     }
     function renderParcels(){
-      const el=document.getElementById('parcelList'); el.innerHTML='';
+      const el=byId('parcelList'); el.innerHTML='';
       const list=filtered(); if(!list.length){ el.innerHTML='<div class="muted">Nu există parcele.</div>'; return; }
       list.forEach(f=>{
         const title = f.nrparc || f.nrfiz || 'Parcelă';
@@ -223,13 +228,13 @@
       });
     }
 
-    document.getElementById('search').addEventListener('input', redraw);
+    // Search & filter
+    byId('search').addEventListener('input', redraw);
     function filtered(){
-      const q=document.getElementById('search').value.trim().toLowerCase();
+      const q=byId('search').value.trim().toLowerCase();
       return features.filter(f=>{
         if(f.firm && firmToggle[f.firm]===false) return false;
-        // category enable ignored in v9 minimal
-        const hay=[f.nrfiz,f.nrparc,f.cultura,f.firm].filter(Boolean).join(' ').toLowerCase();
+        const hay=[f.nrfiz,f.nrparc,f.cultura,f.firm,f.category].filter(Boolean).join(' ').toLowerCase();
         if(q && !hay.includes(q)) return false;
         return true;
       });
@@ -253,36 +258,32 @@
     }
 
     // Helpers
+    function byId(id){ return document.getElementById(id); }
     function mapProps(p){
-      // Try standardized first
-      let firm = val(p['Firma']);
-      let nrfiz = val(p['Nr.Bloc Fizic']);
-      let nrparc = val(p['Nr.Parcela Agricola']);
-      let cultura = val(p['Nume Cultura']);
+      let firm = str(p['Firma']);
+      let nrfiz = str(p['Nr.Bloc Fizic']);
+      let nrparc = str(p['Nr.Parcela Agricola']);
+      let cultura = str(p['Nume Cultura']);
       let areaHa = num(p['Suprafata parcela agricola (ha)']);
-      // Fallback to raw APIA
       if(!nrfiz && p['bloc_nr']!=null) nrfiz = String(p['bloc_nr']);
-      if(!nrparc){
-        if(p['parcel_nr']!=null){
-          nrparc = String(p['parcel_nr']) + (p['crop_nr']!=null ? String(p['crop_nr']) : '');
-        }
-      }
+      if(!nrparc){ if(p['parcel_nr']!=null){ nrparc = String(p['parcel_nr']) + (p['crop_nr']!=null ? String(p['crop_nr']) : ''); } }
       if(!cultura && p['crop_name']!=null) cultura = String(p['crop_name']);
       if(areaHa==null && p['area_dec']!=null) areaHa = num(p['area_dec']);
-      if(!firm && p['Firma']!=null) firm = String(p['Firma']); // keep if present
+      if(!firm && p['Firma']!=null) firm = String(p['Firma']);
       return { firm, nrfiz, nrparc, cultura, areaHa };
     }
-    function val(x){ return (x==null || x==='')? null : String(x); }
+    function str(x){ return (x==null || x==='')? null : String(x); }
     function num(x){ const n=Number(x); return isFinite(n)? n : null; }
     function save(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
     function load(k){ try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch{return null;} }
     function rid(){ try{ return crypto.randomUUID(); } catch { return 'id-'+Math.random().toString(36).slice(2,10); } }
-    function esc(s){ return String(s||'').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function esc(s){ return String(s||'').replace(/[&<>'"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
     function center(coords){ let sLat=0,sLng=0,n=0; coords[0].forEach(([la,ln])=>{sLat+=la; sLng+=ln; n++;}); return [sLat/n,sLng/n]; }
     function fmtHa(x){ return (x!=null && isFinite(x)) ? (Number(x).toFixed(2)+' ha') : ''; }
     function computeAreaHa(ringLatLng){ try{ const gj={ type:'Feature', geometry:{ type:'Polygon', coordinates:[ ringLatLng.map(([la,ln])=>[ln,la]) ] } }; return turf.area(gj)/10000; }catch(e){ return null; } }
 
     redraw();
+  });
   </script>
 </body>
 </html>
